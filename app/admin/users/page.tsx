@@ -3,12 +3,10 @@
 import { IconLoader2, IconTrash } from "@tabler/icons-react";
 import { useCallback, useEffect, useState } from "react";
 
+import { MIN_PASSWORD_LENGTH } from "@/lib/auth/constants";
+import { USER_ROLES, type UserRole } from "@/lib/auth/roles";
 import { Button } from "@/components/ui/Button";
 import { StatusMessage } from "@/components/ui/StatusMessage";
-
-type UserRole = "admin" | "regional" | "ownership" | "individual";
-
-const ROLES: UserRole[] = ["admin", "regional", "ownership", "individual"];
 
 interface AdminUser {
   id: string;
@@ -26,6 +24,8 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [inviteEmail, setInviteEmail] = useState("");
+  const [invitePassword, setInvitePassword] = useState("");
+  const [inviteDisplayName, setInviteDisplayName] = useState("");
   const [inviteRole, setInviteRole] = useState<UserRole>("individual");
   const [inviting, setInviting] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: "ok" | "err" } | null>(null);
@@ -59,12 +59,19 @@ export default function AdminUsersPage() {
       const res = await fetch("/api/admin/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
+        body: JSON.stringify({
+          email: inviteEmail,
+          password: invitePassword,
+          role: inviteRole,
+          displayName: inviteDisplayName || undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to invite user.");
       setInviteEmail("");
-      setMessage({ text: `Invited ${inviteEmail}.`, type: "ok" });
+      setInvitePassword("");
+      setInviteDisplayName("");
+      setMessage({ text: `Created account for ${inviteEmail}.`, type: "ok" });
       load();
     } catch (err: unknown) {
       setMessage({
@@ -123,6 +130,28 @@ export default function AdminUsersPage() {
             className={fieldClass}
           />
         </div>
+        <div className="min-w-[160px] flex-1">
+          <div className="mb-0.5 text-[11px] text-muted">Temporary password</div>
+          <input
+            type="text"
+            required
+            minLength={MIN_PASSWORD_LENGTH}
+            value={invitePassword}
+            onChange={(e) => setInvitePassword(e.target.value)}
+            placeholder={`at least ${MIN_PASSWORD_LENGTH} characters`}
+            className={fieldClass}
+          />
+        </div>
+        <div className="min-w-[140px]">
+          <div className="mb-0.5 text-[11px] text-muted">Display name</div>
+          <input
+            type="text"
+            value={inviteDisplayName}
+            onChange={(e) => setInviteDisplayName(e.target.value)}
+            placeholder="optional"
+            className={fieldClass}
+          />
+        </div>
         <div>
           <div className="mb-0.5 text-[11px] text-muted">Role</div>
           <select
@@ -130,7 +159,7 @@ export default function AdminUsersPage() {
             onChange={(e) => setInviteRole(e.target.value as UserRole)}
             className={fieldClass}
           >
-            {ROLES.map((r) => (
+            {USER_ROLES.map((r) => (
               <option key={r} value={r}>
                 {r}
               </option>
@@ -171,7 +200,7 @@ export default function AdminUsersPage() {
                       onChange={(e) => handleRoleChange(u.id, e.target.value as UserRole)}
                       className={fieldClass}
                     >
-                      {ROLES.map((r) => (
+                      {USER_ROLES.map((r) => (
                         <option key={r} value={r}>
                           {r}
                         </option>

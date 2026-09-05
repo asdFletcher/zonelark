@@ -2,6 +2,7 @@
 
 import { IconSettings, IconUserCircle } from "@tabler/icons-react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { FactoryIcon } from "@/components/icons/FactoryIcon";
@@ -14,6 +15,9 @@ interface TopBarProps {
 }
 
 export function TopBar({ serverOnline }: TopBarProps) {
+  const { data: session } = useSession();
+  const isOrgAdmin = session?.user?.role === "orgAdmin";
+
   return (
     <header className="sticky top-0 z-[100] flex items-center gap-3.5 bg-navy px-6 py-3.5">
       <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-green">
@@ -26,14 +30,16 @@ export function TopBar({ serverOnline }: TopBarProps) {
       <div className="ml-auto flex items-center gap-2.5">
         <LastSyncedBadge />
         <ServerStatusBadge online={serverOnline} />
-        <Link
-          href="/admin"
-          aria-label="Admin console"
-          title="Admin console"
-          className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 transition-colors hover:bg-white/10 hover:text-white"
-        >
-          <IconSettings size={18} />
-        </Link>
+        {isOrgAdmin && (
+          <Link
+            href="/admin"
+            aria-label="Admin console"
+            title="Admin console"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+          >
+            <IconSettings size={18} />
+          </Link>
+        )}
         <Link
           href="/profile"
           aria-label="Your profile"

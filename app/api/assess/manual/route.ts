@@ -1,23 +1,27 @@
 /**
- * Manual / CSV-import assess. JSON body: { assets: AssetRecord[] }.
- * Validates each row, writes a workbook into the job store, returns job_id.
- *
- * Once persistence exists, the client will also send building_id and this
- * route should create an `assessments` row under that building.
+ * Manual / CSV-import assess. JSON body: { assets: AssetRecord[], building_id? }.
+ * Validates each row, writes a workbook into the job store, persists an
+ * `assessments` row when building_id is set, and returns job_id.
  */
 import { randomUUID } from "crypto";
 
 import { jobStore } from "@/lib/server/jobStore";
+import { persistAssessment } from "@/lib/server/persistAssessment";
 import { exportWorkbook } from "@/lib/server/spreadsheet";
+import { requireUser } from "@/lib/server/session";
 import { AssetRecord, AssetRecordSchema } from "@/lib/schemas";
 
 export const runtime = "nodejs";
 
 interface ManualAssessBody {
   assets: unknown[];
+  building_id?: string;
 }
 
 export async function POST(request: Request) {
+  const authed = await requireUser();
+  if ("error" in authed) return authed.error;
+
   let body: unknown;
   try {
     body = await request.json();
@@ -25,7 +29,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  const { assets: rawAssets } = (body ?? {}) as Partial<ManualAssessBody>;
+  const { assets: rawAssets, building_id: buildingId } = (body ?? {}) as Partial<ManualAssessBody>;
 
   if (!Array.isArray(rawAssets) || rawAssets.length === 0) {
     return Response.json(
@@ -48,6 +52,12 @@ export async function POST(request: Request) {
 
   const jobId = randomUUID();
   await jobStore.set(jobId, await exportWorkbook(assets), assets);
+  await persistAssessment({
+    orgId: authed.user.orgId,
+    userId: authed.user.id,
+    buildingId: buildingId ?? null,
+    assets,
+  });
 
   return Response.json({
     job_id: jobId,

@@ -2,18 +2,18 @@
  * AI photo assessment. Multipart: field_photos[], facility_name, facility_type,
  * facility_sqft, plus optional facility_level, floor_id, assessment_date, and
  * building_id. Runs the vision pipeline, enriches the asset, stores the job
- * (in-memory until the remote database is wired), returns job_id + assets.
- *
- * Once persistence exists, a successful assess should also create an
- * `assessments` row under `building_id` and attach the job's assets to it.
+ * for immediate export, persists an `assessments` row when building_id is set,
+ * and returns job_id + assets.
  */
 import { randomUUID } from "crypto";
 import path from "path";
 
 import { enrichAsset } from "@/lib/server/enrichment";
 import { jobStore } from "@/lib/server/jobStore";
+import { persistAssessment } from "@/lib/server/persistAssessment";
 import { ZonelarkVisionPipeline } from "@/lib/server/llmPipeline";
 import { exportWorkbook } from "@/lib/server/spreadsheet";
+import { requireUser } from "@/lib/server/session";
 import { AssetRecord, UploadContext } from "@/lib/schemas";
 
 export const runtime = "nodejs";
@@ -31,6 +31,9 @@ async function fileToUploaded(file: File): Promise<UploadedFile> {
 }
 
 export async function POST(request: Request) {
+  const authed = await requireUser();
+  if ("error" in authed) return authed.error;
+
   const form = await request.formData();
 
   const fields: Record<string, string> = {};
@@ -92,6 +95,15 @@ export async function POST(request: Request) {
 
   const jobId = randomUUID();
   await jobStore.set(jobId, await exportWorkbook(assets), assets);
+  await persistAssessment({
+    orgId: authed.user.orgId,
+    userId: authed.user.id,
+    buildingId: fields.building_id || null,
+    assets,
+    assessmentDate: fields.assessment_date,
+    facilityLevel: fields.facility_level,
+    floorId: fields.floor_id,
+  });
 
   return Response.json({
     job_id: jobId,

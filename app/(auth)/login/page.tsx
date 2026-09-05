@@ -1,22 +1,38 @@
 "use client";
 
 import { IconLoader2 } from "@tabler/icons-react";
-import { useState } from "react";
+import { signIn } from "next-auth/react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 
+import { MIN_PASSWORD_LENGTH } from "@/lib/auth/constants";
 import { Button } from "@/components/ui/Button";
 
-export default function LoginPage() {
+function LoginForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.SubmitEvent) => {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
     try {
-      // todo: handle login logic
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+      });
+      if (result?.error) {
+        setError("Invalid email or password.");
+        return;
+      }
+      const next = searchParams.get("callbackUrl") || "/";
+      router.push(next.startsWith("/") ? next : "/");
+      router.refresh();
     } finally {
       setSubmitting(false);
     }
@@ -36,6 +52,7 @@ export default function LoginPage() {
           <input
             type="email"
             required
+            autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="w-full rounded-[7px] border border-border bg-bg px-2.5 py-2 text-[13px] text-text outline-none transition-[border-color] focus:border-green"
@@ -46,6 +63,8 @@ export default function LoginPage() {
           <input
             type="password"
             required
+            minLength={MIN_PASSWORD_LENGTH}
+            autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="w-full rounded-[7px] border border-border bg-bg px-2.5 py-2 text-[13px] text-text outline-none transition-[border-color] focus:border-green"
@@ -66,9 +85,24 @@ export default function LoginPage() {
         </Button>
 
         <p className="mt-4 text-[12px] text-hint">
-          New accounts are created by an administrator via the Admin console.
+          The first sign-in on a new database creates the organization and an organization-admin
+          account. After that, new accounts are created by an organization administrator.
         </p>
       </form>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-full flex-1 items-center justify-center bg-bg text-[13px] text-muted">
+          Loading...
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }
